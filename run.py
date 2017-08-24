@@ -1,4 +1,3 @@
-import random
 import tensorflow as tf
 import numpy as np
 import gym
@@ -57,7 +56,7 @@ with tf.Session() as sess:
 
     env = gym.make('CartPole-v1')
 
-    # Trai
+    # Train
     print('Training...')
     for episode in range(n_episode):
         observation = env.reset()
