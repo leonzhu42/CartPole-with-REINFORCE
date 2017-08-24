@@ -5,35 +5,53 @@ import gym
 policy_network_verbose = False
 update_gradients_verbose = False
 
-learning_rate = 0.0001
+policy_learning_rate = 0.0001
+baseline_learning_rate = 0.00001
 
 n_episode = 500
-gamma = 0.95
+gamma = 0.99
 
 observation_placeholder = tf.placeholder(tf.float32, shape=[None, 4])
-W1 = tf.get_variable('W1', shape=[4, 64])
-b1 = tf.get_variable('b1', shape=[64])
-W2 = tf.get_variable('W2', shape=[64, 64])
-b2 = tf.get_variable('b2', shape=[64])
-W3 = tf.get_variable('W3', shape=[64, 2])
-b3 = tf.get_variable('b3', shape=[2])
-hidden1 = tf.nn.relu(tf.matmul(observation_placeholder, W1) + b1)
-hidden2 = tf.nn.relu(tf.matmul(hidden1, W2) + b2)
-scores = tf.nn.relu(tf.matmul(hidden2, W3) + b3)
+W1_policy = tf.get_variable('W1_policy', shape=[4, 64])
+b1_policy = tf.get_variable('b1_policy', shape=[64])
+W2_policy = tf.get_variable('W2_policy', shape=[64, 64])
+b2_policy = tf.get_variable('b2_policy', shape=[64])
+W3_policy = tf.get_variable('W3_policy', shape=[64, 2])
+b3_policy = tf.get_variable('b3_policy', shape=[2])
+hidden1_policy = tf.nn.relu(tf.matmul(observation_placeholder, W1_policy) + b1_policy)
+hidden2_policy = tf.nn.relu(tf.matmul(hidden1_policy, W2_policy) + b2_policy)
+scores = tf.nn.relu(tf.matmul(hidden2_policy, W3_policy) + b3_policy)
 probs = tf.nn.softmax(scores)
 
-learning_rate_placeholder = tf.placeholder(tf.float32)
 discount_placeholder = tf.placeholder(tf.float32)
 gain_placeholder = tf.placeholder(tf.float32)
 action_placeholder = tf.placeholder(tf.float32, shape=[None, 2])
 log_probs = tf.log(probs) * action_placeholder
-grads = tf.gradients(log_probs, [W1, b1, W2, b2, W3, b3])
-update_W1 = W1.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[0])
-update_b1 = b1.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[1])
-update_W2 = W2.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[2])
-update_b2 = b2.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[3])
-update_W3 = W3.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[4])
-update_b3 = b3.assign_add(learning_rate_placeholder * discount_placeholder * gain_placeholder * grads[5])
+grads_policy = tf.gradients(log_probs, [W1_policy, b1_policy, W2_policy, b2_policy, W3_policy, b3_policy])
+update_W1_policy = W1_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[0])
+update_b1_policy = b1_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[1])
+update_W2_policy = W2_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[2])
+update_b2_policy = b2_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[3])
+update_W3_policy = W3_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[4])
+update_b3_policy = b3_policy.assign_add(policy_learning_rate * discount_placeholder * gain_placeholder * grads_policy[5])
+
+W1_baseline = tf.get_variable('W1_baseline', shape=[4, 64])
+b1_baseline = tf.get_variable('b1_baseline', shape=[64])
+W2_baseline = tf.get_variable('W2_baseline', shape=[64, 64])
+b2_baseline = tf.get_variable('b2_baseline', shape=[64])
+W3_baseline = tf.get_variable('W3_baseline', shape=[64, 1])
+b3_baseline = tf.get_variable('b3_baseline', shape=[1])
+hidden1_baseline = tf.nn.relu(tf.matmul(observation_placeholder, W1_baseline) + b1_baseline)
+hidden2_baseline = tf.nn.relu(tf.matmul(hidden1_baseline, W2_baseline) + b2_baseline)
+values = tf.matmul(hidden2_baseline, W3_baseline) + b3_baseline
+
+grads_baseline = tf.gradients(values, [W1_baseline, b1_baseline, W2_baseline, b2_baseline, W3_baseline, b3_baseline])
+update_W1_baseline = W1_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[0])
+update_b1_baseline = b1_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[1])
+update_W2_baseline = W2_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[2])
+update_b2_baseline = b2_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[3])
+update_W3_baseline = W3_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[4])
+update_b3_baseline = b3_baseline.assign_add(baseline_learning_rate * gain_placeholder * grads_baseline[5])
 
 def policy_network(observation, session, verbose=False):
     probabilities = session.run(probs, feed_dict={observation_placeholder: [observation]})
@@ -41,14 +59,19 @@ def policy_network(observation, session, verbose=False):
         print(probabilities)
     return np.argmax(probabilities)
 
-def update_gradients(learning_rate, discount, gain, observation, action, session, verbose=False):
+def update_policy_gradients(discount, gain, observation, action, session, verbose=False):
     if action == 0:
         mask = [[1, 0]]
     else:
         mask = [[0, 1]]
-    result = session.run([probs, log_probs, grads, update_W1, update_b1, update_W2, update_b2, update_W3, update_b3], feed_dict={observation_placeholder: [observation], learning_rate_placeholder: learning_rate, discount_placeholder: discount, gain_placeholder: gain, action_placeholder: mask})
+    result = session.run([probs, log_probs, grads_policy, update_W1_policy, update_b1_policy, update_W2_policy, update_b2_policy, update_W3_policy, update_b3_policy], feed_dict={observation_placeholder: [observation], discount_placeholder: discount, gain_placeholder: gain, action_placeholder: mask})
     if verbose:
         print(result[2]) # print the gradients w.r.t. weights and biases
+
+def update_baseline_gradients(gain, observation, session, verbose=False):
+    result = session.run([grads_baseline, update_W1_baseline, update_b1_baseline, update_W2_baseline, update_b2_baseline, update_W3_baseline, update_b3_baseline], feed_dict={observation_placeholder: [observation], gain_placeholder: gain})
+    if verbose:
+        print(result[0])
 
 init = tf.global_variables_initializer()
 with tf.Session() as sess:
@@ -81,7 +104,9 @@ with tf.Session() as sess:
         discount = 1.0
         for t in range(len(memory)):
             observation, action, reward = memory[t]
-            update_gradients(learning_rate=learning_rate, discount=discount, gain=gain, observation=observation, action=action, session=sess, verbose=update_gradients_verbose)
+            gain_with_baseline = gain - sess.run(values, feed_dict={observation_placeholder: [observation]})[0][0]
+            update_policy_gradients(discount=discount, gain=gain_with_baseline, observation=observation, action=action, session=sess, verbose=update_gradients_verbose)
+            update_baseline_gradients(gain=gain_with_baseline, observation=observation, session=sess, verbose=update_gradients_verbose)
             gain -= discount * reward
             discount *= gamma
     print('Training done!')
