@@ -1,3 +1,4 @@
+import random
 import tensorflow as tf
 import numpy as np
 import gym
@@ -6,9 +7,9 @@ policy_network_verbose = False
 update_gradients_verbose = False
 
 policy_learning_rate = 0.0001
-baseline_learning_rate = 0.00001
+baseline_learning_rate = 0.0001
 
-n_episode = 500
+n_episode = 1000
 gamma = 0.99
 
 observation_placeholder = tf.placeholder(tf.float32, shape=[None, 4])
@@ -57,7 +58,10 @@ def policy_network(observation, session, verbose=False):
     probabilities = session.run(probs, feed_dict={observation_placeholder: [observation]})
     if verbose:
         print(probabilities)
-    return np.argmax(probabilities)
+    if random.random() <= probabilities[0][0]:
+        return 0
+    else:
+        return 1
 
 def update_policy_gradients(discount, gain, observation, action, session, verbose=False):
     if action == 0:
